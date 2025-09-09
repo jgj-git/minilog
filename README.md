@@ -13,3 +13,4 @@ The following features will be implemented, in order:
 - [ ] Preponed/Postponed regions
 - [ ] Clocking blocks
 - [ ] Non zero delay rtl
+- [ ] Multithreaded simulator
