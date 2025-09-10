@@ -14,6 +14,7 @@ struct logic_t {
     struct logic_t *from;
     struct logic_t *to;
     logic_e value;
+    int unsigned id;
 };
 // event type
 typedef enum { CONSTANT_ASSIGNMENT, CONTINUOUS_ASSIGNMENT } event_type_e;
@@ -22,6 +23,7 @@ struct sim_event_t {
     struct logic_t *rhs;
     struct sim_event_t *next_event;
     event_type_e type;
+    logic_e rhs_const_val;
 };
 struct sim_event_t *create_sim_event(
     struct logic_t *lhs,
@@ -29,16 +31,27 @@ struct sim_event_t *create_sim_event(
     event_type_e type
 ) {
     struct sim_event_t *new_event = malloc(sizeof(struct sim_event_t));
-    new_event->lhs = lhs;
-    new_event->rhs = rhs;
     new_event->type = type;
     new_event->next_event = NULL;
-    if (type == CONTINUOUS_ASSIGNMENT) {
-        if (lhs != NULL)
+    switch (type) {
+        case CONTINUOUS_ASSIGNMENT : {
             lhs->from = rhs;
-        if (rhs != NULL)
             rhs->to = lhs;
+            new_event->rhs = rhs;
+            break;
+        }
+        case CONSTANT_ASSIGNMENT : {
+            lhs->from = NULL;
+            new_event->rhs = NULL;
+            new_event->rhs_const_val = rhs->value;
+            break;
+        }
+        default : {
+            printf("[create_sim_event] ERROR: INVALID EVENT TYPE\n");
+            exit(1);
+        }
     }
+    new_event->lhs = lhs;
     return new_event;
 }
 // time slot type
@@ -75,14 +88,12 @@ struct sim_time_slot_t *sim_time_slots;
 // assigning constants form tb
 struct logic_t *wires;
 int unsigned nwires;
-int unsigned sim_time;
 
 ///////////////////////////////////////////////////////
 ///////////////// GLOBAL FUNCTIONS ////////////////////
 ///////////////////////////////////////////////////////
 void initialize_sim() {
     printf("Initializing simulation globals...\n");
-    sim_time = 0;
     // time slots
     sim_time_slots = create_sim_time_slot(0);
     // wires
@@ -126,13 +137,17 @@ struct logic_t *declare_wire(logic_e init_value) {
     wires[nwires - 1].value = init_value;
     wires[nwires - 1].from = NULL;
     wires[nwires - 1].to = NULL;
+    wires[nwires - 1].id = nwires-1;
     return &(wires[nwires - 1]);
 }
 
 void assign_const_to_wire(struct logic_t *lhs, logic_e rhs_val,
                           int unsigned sim_time) {
-    struct logic_t *rhs = declare_wire(rhs_val);
-    struct sim_event_t *event = create_sim_event(lhs, rhs, CONSTANT_ASSIGNMENT);
+    struct logic_t rhs;
+    rhs.value = rhs_val;
+    rhs.to = NULL;
+    rhs.from = NULL;
+    struct sim_event_t *event = create_sim_event(lhs, &rhs, CONSTANT_ASSIGNMENT);
     schedule_event(event, sim_time);
 }
 
@@ -146,18 +161,17 @@ void nba_wires(struct logic_t *lhs, struct logic_t *rhs) {
 }
 
 void execute_event(struct sim_event_t *event) {
-    printf("\tEvent executed in timeslot %d: from %d to %d\n", sim_time,
-           event->lhs->value, event->rhs->value);
+    printf("\tEvent executed in timeslot %d: wire %d went from %d to %d\n", 
+           sim_time_slots->sim_time, event->lhs->id, event->lhs->value, 
+           event->rhs == NULL ? event->rhs_const_val : event->rhs->value);
+    logic_e old_lhs_val = event->lhs->value;
     switch (event->type) {
         case CONSTANT_ASSIGNMENT: {
-            event->lhs->value = event->rhs->value;
+            event->lhs->value = event->rhs_const_val;
             break;
         }
         case CONTINUOUS_ASSIGNMENT: {
             event->lhs->value = event->rhs->value;
-            struct sim_event_t *new_event = 
-                create_sim_event(event->lhs, event->rhs, CONTINUOUS_ASSIGNMENT);
-            schedule_event(new_event, sim_time + 1);
             break;
         }
         default: {
@@ -165,17 +179,19 @@ void execute_event(struct sim_event_t *event) {
             break;
         }
     }
+    if (event->lhs->to != NULL && old_lhs_val != event->lhs->value) {
+        struct sim_event_t *new_event = 
+            create_sim_event(event->lhs->to, event->lhs, CONTINUOUS_ASSIGNMENT);
+        schedule_event(new_event, sim_time_slots->sim_time + 1);
+    }
 }
 
-// TODO: figure out how to make simulation end when continuous assignments
-// are used -> changes in lhs of cont assignment schedule event on rhs using
-// to pointer
 void start_simulation() {
     printf("Starting simulation...\n");
     struct sim_time_slot_t *prev_time_slot;
-    while (sim_time_slots != NULL && sim_time <= MAX_SIM_TIME) {
+    while (sim_time_slots != NULL && sim_time_slots->sim_time <= MAX_SIM_TIME) {
         printf("\nTimeslot %d\n", sim_time_slots->sim_time);
-        debug_sim_time_slot(sim_time_slots);
+        //debug_sim_time_slot(sim_time_slots);
         sim_time_slots->events = sim_time_slots->active_region_events;
         struct sim_event_t *current_event = sim_time_slots->events;
         struct sim_event_t *prev_event;
@@ -188,6 +204,5 @@ void start_simulation() {
         prev_time_slot = sim_time_slots;
         sim_time_slots = sim_time_slots->next_time_slot;
         free(prev_time_slot);
-        ++sim_time;
     }
 }

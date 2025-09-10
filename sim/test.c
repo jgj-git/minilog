@@ -11,5 +11,6 @@ int main() {
     assign_const_to_wire(b, LOW, 1);
     assign_const_to_wire(c, X, 2);
     cont_assign_wires(aclone, a);
+    assign_const_to_wire(a, LOW, 8);
     start_simulation();
 }
