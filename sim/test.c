@@ -1,8 +1,9 @@
 #include "../src/simulator.c"
+
 int main() {
     initialize_sim();
     // scheduling of simulation events
-    struct logic_t *a, *b, *c, *aclone, *creg, *cregreg, *cfinal;
+    wire_id_t a, b, c, aclone, creg, cregreg, cfinal;
     a = declare_wire(X);
     b = declare_wire(X);
     c = declare_wire(X);
