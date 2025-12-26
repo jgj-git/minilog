@@ -1,7 +1,7 @@
 # MINILOG
 
 Minilog is a small, partial implementation of the simulator described in 
-SystemVerilog's LRM, written in C.
+SystemVerilog's LRM, written in C++.
 
 ## Features
 The following features will be implemented, in order:
